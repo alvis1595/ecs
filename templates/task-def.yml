@@ -1,0 +1,180 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Task Definition for SonarQube on ECS Fargate with Secrets Manager'
+
+Resources:
+  # IAM Role for ECS Task
+  ECSTaskExecutionRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ecs-tasks.amazonaws.com
+            Action: 'sts:AssumeRole'
+      Policies:
+        - PolicyName: ECSFargateTaskExecutionPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - efs:ClientMount
+                  - efs:ClientWrite
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - ecr:GetDownloadUrlForLayer
+                  - ecr:BatchGetImage
+                  - ecr:GetAuthorizationToken
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                  - logs:DescribeLogStreams
+                Resource: '*'
+
+   # IAM Role for the Task itself
+  ECSTaskRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ecs-tasks.amazonaws.com
+            Action: 'sts:AssumeRole'
+      Policies:
+        - PolicyName: ECSFargateTaskRolePolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecs:StartTask
+                  - ecs:StopTask
+                  - ecs:RunTask
+                  - efs:*
+                Resource: '*'
+
+  LogGroupSonar:
+    Type: 'AWS::Logs::LogGroup'
+    Properties:
+      LogGroupName: '/ecs/'
+      RetentionInDays: 7
+
+  # ECS Task Definition
+  ECSTaskDefinition:
+    Type: 'AWS::ECS::TaskDefinition'
+    Properties:
+      Family: 'SonarQubeTask'
+      Cpu: '2048'
+      Memory: '8192'
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !GetAtt ECSTaskExecutionRole.Arn
+      TaskRoleArn: !GetAtt ECSTaskRole.Arn
+      RuntimePlatform:
+        OperatingSystemFamily: LINUX
+        CpuArchitecture: X86_64
+      ContainerDefinitions:
+        - Name: sonarqube
+          Image: "{{resolve:ssm:/config/infra/devops/ecs/sonarqube-image}}"
+          Essential: true
+          PortMappings:
+            - ContainerPort: 9000
+              HostPort: 9000
+              Protocol: tcp
+              Name: sonar-port
+              AppProtocol: http
+          Environment:
+            - Name: SONARQUBE_JDBC_USERNAME
+              Value: sonaradmin 
+            - Name: SONARQUBE_JDBC_URL
+              Value: "{{resolve:ssm:/config/infra/rds/db-endpoint}}"
+            - Name: SET_CONTAINER_TIMEZONE
+              Value: 'true'
+            - Name: TZ
+              Value: 'America/Panama'
+          Secrets:
+            - Name: SONARQUBE_JDBC_PASSWORD
+              ValueFrom: 'arn:aws:secretsmanager:us-west-2:258840583819:secret:dso-ipd-sonarqube-rds-credentials-wqlNes:password::'
+          MountPoints:
+            - SourceVolume: sonarqube_data
+              ContainerPath: /opt/sonarqube/data
+              ReadOnly: false
+            - SourceVolume: sonarqube_logs
+              ContainerPath: /opt/sonarqube/logs
+              ReadOnly: false
+            - SourceVolume: sonarqube_extensions
+              ContainerPath: /opt/sonarqube/extensions
+              ReadOnly: false
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref LogGroupSonar
+              awslogs-stream-prefix: 'sonarqube'
+              mode: non-blocking
+              max-buffer-size: 25m
+              awslogs-region: !Ref 'AWS::Region'
+      Volumes:
+        - Name: sonarqube_data
+          EfsVolumeConfiguration:
+            FileSystemId: !ImportValue 'SonarQubeEFSStackEFSFileSystemId'
+            AuthorizationConfig:
+              AccessPointId: !ImportValue 'EFSAccessPointDataId'
+              IAM: 'DISABLED'
+            TransitEncryption: 'ENABLED'
+            RootDirectory: '/'
+        - Name: sonarqube_logs
+          EfsVolumeConfiguration:
+            FileSystemId: !ImportValue 'SonarQubeEFSStackEFSFileSystemId'
+            AuthorizationConfig:
+              AccessPointId: !ImportValue 'EFSAccessPointLogsId'
+              IAM: 'DISABLED'
+            TransitEncryption: 'ENABLED'
+            RootDirectory: '/'
+        - Name: sonarqube_extensions
+          EfsVolumeConfiguration:
+            FileSystemId: !ImportValue 'SonarQubeEFSStackEFSFileSystemId'
+            AuthorizationConfig:
+              AccessPointId: !ImportValue 'EFSAccessPointExtensionsId'
+              IAM: 'DISABLED'
+            TransitEncryption: 'ENABLED'
+            RootDirectory: '/'
+
+Outputs:
+  TaskDefinitionArn:
+    Description: 'ARN de la definición de tarea de ECS'
+    Value: !Ref ECSTaskDefinition
+    Export:
+      Name: SonarQubeTaskDefinitionArn
+
+  TaskExecutionRoleArn:
+    Description: 'ARN del role de ejecución de tareas de ECS'
+    Value: !GetAtt ECSTaskExecutionRole.Arn
+    Export:
+      Name: SonarQubeTaskExecutionRoleArn
+
+  TaskRoleArn:
+    Description: 'ARN del role de la tarea de ECS'
+    Value: !GetAtt ECSTaskRole.Arn
+    Export:
+      Name: SonarQubeTaskRoleArn
+
+  LogGroupName:
+    Description: 'Nombre del grupo de logs de ECS'
+    Value: !Ref LogGroupSonar
+    Export:
+      Name: ECSLogGroupName
