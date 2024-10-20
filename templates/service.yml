@@ -1,0 +1,56 @@
+Description: Deploy a service on AWS Fargate, hosted in a private subnet.
+
+Resources:
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: sonarqube-tg
+      Port: 9000
+      Protocol: HTTP
+      TargetType: ip
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+      VpcId: !ImportValue MyVPCID
+  
+  AlbListener:
+    DependsOn:
+      - TargetGroup
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref TargetGroup
+      LoadBalancerArn: !ImportValue alb-sonarqube-arn
+      Port: 443
+      Protocol: HTTPS
+      Certificates:
+        - CertificateArn: "{{resolve:ssm:/config/infra/devops/alb/certificate}}"
+
+  Service:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster: !ImportValue ECSClusterName
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 75
+      DesiredCount: 1
+      LaunchType: FARGATE
+      HealthCheckGracePeriodSeconds: 60
+      LoadBalancers:
+        - ContainerName: sonarqube
+          ContainerPort: 9000
+          TargetGroupArn: !Ref TargetGroup
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          SecurityGroups: 
+            - !ImportValue ECSSecurityGroupID
+          Subnets:
+            - !ImportValue ECSPrivateSubnet1ID
+            - !ImportValue ECSPrivateSubnet2ID
+      PlatformVersion: 1.4.0
+      TaskDefinition: !ImportValue SonarQubeTaskDefinitionArn
+      PropagateTags: SERVICE
+      Tags:
+        - Key: Name
+          Value: sonarqube-service
