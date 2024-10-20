@@ -1,0 +1,116 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'EFS File System with Mount Targets in Private Subnets'
+
+Resources:
+  # EFS File System
+  EFSFileSystem:
+    Type: 'AWS::EFS::FileSystem'
+    Properties:
+      BackupPolicy:
+        Status: ENABLED
+      FileSystemTags:
+        - Key: Name
+          Value: efs-sonarqube
+      Encrypted: true
+  
+  EFSAccessPointData:
+    Type: 'AWS::EFS::AccessPoint'
+    Properties:
+      FileSystemId: !Ref EFSFileSystem
+      PosixUser:
+        Uid: "1000"
+        Gid: "1000"
+      RootDirectory:
+        CreationInfo:
+          OwnerGid: "1000"
+          OwnerUid: "1000"
+          Permissions: "0755"
+        Path: "/sonarqube_data"
+      AccessPointTags:
+        - Key: Name
+          Value: sonarqube_data
+
+  EFSAccessPointLogs:
+    Type: 'AWS::EFS::AccessPoint'
+    Properties:
+      FileSystemId: !Ref EFSFileSystem
+      PosixUser:
+        Uid: "1000"
+        Gid: "1000"
+      RootDirectory:
+        CreationInfo:
+          OwnerGid: "1000"
+          OwnerUid: "1000"
+          Permissions: "0755"
+        Path: "/sonarqube_logs"
+      AccessPointTags:
+        - Key: Name
+          Value: sonarqube_logs
+
+  EFSAccessPointExtensions:
+    Type: 'AWS::EFS::AccessPoint'
+    Properties:
+      FileSystemId: !Ref EFSFileSystem
+      PosixUser:
+        Uid: "1000"
+        Gid: "1000"
+      RootDirectory:
+        CreationInfo:
+          OwnerGid: "1000"
+          OwnerUid: "1000"
+          Permissions: "0755"
+        Path: "/sonarqube_extensions"
+      AccessPointTags:
+        - Key: Name
+          Value: sonarqube_extensions
+
+  # Mount Target in Private Subnet 1
+  EFSMountTargetPrivateSubnet1:
+    Type: 'AWS::EFS::MountTarget'
+    Properties:
+      FileSystemId: !Ref EFSFileSystem
+      SubnetId: !ImportValue ECSPrivateSubnet1ID
+      SecurityGroups:
+        - !ImportValue EFSSecurityGroupID
+
+  # Mount Target in Private Subnet 2
+  EFSMountTargetPrivateSubnet2:
+    Type: 'AWS::EFS::MountTarget'
+    Properties:
+      FileSystemId: !Ref EFSFileSystem
+      SubnetId: !ImportValue ECSPrivateSubnet2ID
+      SecurityGroups:
+        - !ImportValue EFSSecurityGroupID
+
+Outputs:
+  MountTarget1Id:
+    Description: 'Mount Target ID in Private Subnet 1'
+    Value: !Ref EFSMountTargetPrivateSubnet1
+
+  MountTarget2Id:
+    Description: 'Mount Target ID in Private Subnet 2'
+    Value: !Ref EFSMountTargetPrivateSubnet2
+  
+  EFSFileSystemId:
+    Description: 'ID del sistema de archivos EFS'
+    Value: !Ref EFSFileSystem
+    Export:
+      Name: SonarQubeEFSStackEFSFileSystemId
+  
+  EFSAccessPointDataId:
+    Description: 'ID del Access Point Data del EFS'
+    Value: !Ref EFSAccessPointData
+    Export:
+      Name: EFSAccessPointDataId
+
+  EFSAccessPointLogsId:
+    Description: 'ID del Access Point Logs del EFS'
+    Value: !Ref EFSAccessPointLogs
+    Export:
+      Name: EFSAccessPointLogsId
+
+  EFSAccessPointExtensionsId:
+    Description: 'ID del Access Point Extensions del EFS'
+    Value: !Ref EFSAccessPointExtensions
+    Export:
+      Name: EFSAccessPointExtensionsId
