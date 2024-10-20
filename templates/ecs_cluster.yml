@@ -1,0 +1,28 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Fargate ECS Cluster'
+
+Parameters:
+  ClusterName:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: '/config/infra/devops/ecs/cluster-name'
+    Description: 'Nombre del clúster de ECS.'
+
+Resources:
+  # ECS Cluster
+  ECSCluster:
+    Type: 'AWS::ECS::Cluster'
+    Properties:
+      ClusterName: !Ref ClusterName
+
+Outputs:
+  ClusterName:
+    Description: 'Nombre del clúster de ECS'
+    Value: !Ref ECSCluster
+    Export:
+      Name: ECSClusterName
+
+  ClusterArn:
+    Description: 'ARN del clúster de ECS'
+    Value: !GetAtt ECSCluster.Arn
+    Export:
+      Name: ECSClusterArn
