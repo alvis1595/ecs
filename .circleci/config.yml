@@ -1,0 +1,160 @@
+version: 2.1
+
+executors:
+  arm-executor:
+    environment:
+      AWS_PAGER: ""
+      ENTERPRISE_NAME: dso
+      GROUP_NAME: ipic
+      SERVICE_NAME: ecs
+    machine:
+      image: ubuntu-2004:current
+#    resource_class: arm.medium
+    resource_class: arm.medium
+
+jobs:
+  deploy:
+    executor: arm-executor
+    environment:
+      CIRCLE_PIPELINE_NUM: << pipeline.number >>
+      DEPLOY_ENV: <<parameters.DEPLOY_ENV>>
+      RESOURCE_NAME: <<parameters.RESOURCE_NAME>>
+    parameters:
+      DEPLOY_ENV:
+        type: string
+        enum: [prod]
+      TEMPLATE_FILE_NAME:
+        type: string
+      RESOURCE_NAME:
+        type: string
+    steps:
+      - checkout
+      - run:
+          name: Install AWS cli ☁️ 📦
+          command: |
+            chmod +x ./scripts/install_aws.sh
+            ./scripts/install_aws.sh <<parameters.DEPLOY_ENV>> <<pipeline.number>>
+      - run: chmod +x ./scripts/*
+      - run:
+          name: Deploying <<parameters.RESOURCE_NAME>> 🎯
+          command: ./scripts/deploy.sh <<parameters.TEMPLATE_FILE_NAME>> <<parameters.RESOURCE_NAME>>
+          no_output_timeout: 40m
+
+workflows:
+  iac-compute:
+    jobs:
+      - approval:
+          name: Tech lead approvement prod 👓 👨‍💻
+          type: approval
+          filters:
+            branches:
+              only: alvis
+
+      - deploy:
+          name: Deploy IAC VPC
+          DEPLOY_ENV: prod
+          TEMPLATE_FILE_NAME: vpc.yml
+          RESOURCE_NAME: vpc
+          requires:
+            - Tech lead approvement prod 👓 👨‍💻
+          filters:
+            branches:
+              only: alvis
+          context:
+            - DsoCloudAWS
+            - DsoCloudJfrog
+
+      - deploy:
+          name: Deploy IAC Security Groups
+          DEPLOY_ENV: prod
+          TEMPLATE_FILE_NAME: sg.yml
+          RESOURCE_NAME: sg
+          requires:
+            - Deploy IAC VPC
+          filters:
+            branches:
+              only: alvis
+          context:
+            - DsoCloudAWS
+            - DsoCloudJfrog
+
+      - deploy:
+          name: Deploy IAC Elastic Filesystem
+          DEPLOY_ENV: prod
+          TEMPLATE_FILE_NAME: efs.yml
+          RESOURCE_NAME: efs
+          requires:
+            - Deploy IAC Security Groups
+          filters:
+            branches:
+              only: alvis
+          context:
+            - DsoCloudAWS
+            - DsoCloudJfrog
+
+      - deploy:
+          name: Deploy IAC ECS Cluster 
+          DEPLOY_ENV: prod
+          TEMPLATE_FILE_NAME: ecs-cluster.yml
+          RESOURCE_NAME: cluster
+          filters:
+            branches:
+              only: alvis
+          context:
+            - DsoCloudAWS
+            - DsoCloudJfrog
+
+      - deploy:
+          name: Deploy IAC ECS Task Definition
+          DEPLOY_ENV: prod
+          TEMPLATE_FILE_NAME: task-def.yml
+          RESOURCE_NAME: task
+          requires:
+            - Deploy IAC ECS Cluster
+          filters:
+            branches:
+              only: alvis
+          context:
+            - DsoCloudAWS
+            - DsoCloudJfrog
+
+      - deploy:
+          name: Deploy IAC Alb PROD
+          DEPLOY_ENV: prodb
+          TEMPLATE_FILE_NAME: alb.yml
+          RESOURCE_NAME: alb
+          requires:
+            - Deploy IAC ECS Task Definition
+          filters:
+            branches:
+              only: alvis
+          context:
+            - DsoCloudAWS
+            - DsoCloudJfrog
+
+      - deploy:
+          name: Deploy IAC ECS Service
+          DEPLOY_ENV: prodb
+          TEMPLATE_FILE_NAME: service.yml
+          RESOURCE_NAME: service
+          requires:
+            - Deploy IAC Alb PROD
+          filters:
+            branches:
+              only: alvis
+          context:
+            - DsoCloudAWS
+            - DsoCloudJfrog
+
+      - deploy:
+          name: despliega el peering
+          DEPLOY_ENV: prodb
+          TEMPLATE_FILE_NAME: peering.yaml
+          RESOURCE_NAME: peering
+          requires:
+            - Deploy IAC peering prod
+          filters:
+            branches:
+              only: alvis
+          context:
+            - DsoCloudAWS
