@@ -1,0 +1,72 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Security Groups for ECS and EFS'
+
+Resources:
+  # Security Group for ECS (allows all traffic)
+  ECSSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupName: ecs-sg
+      GroupDescription: 'Security Group for ECS allowing all traffic'
+      VpcId: !ImportValue ECSVPCId
+      SecurityGroupIngress:
+        - IpProtocol: '-1'  # This allows all traffic
+          CidrIp: !ImportValue ECSVPCCIDR
+      Tags:
+        - Key: Name
+          Value: ecs-sg
+
+  # Security Group for EFS (allows NFS traffic)
+  EFSSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupName: efs-sg
+      GroupDescription: 'Security Group for EFS allowing NFS traffic'
+      VpcId: !ImportValue ECSVPCId
+      SecurityGroupIngress:
+        - IpProtocol: 'tcp'
+          FromPort: 2049  # NFS port
+          ToPort: 2049
+          SourceSecurityGroupId: !Ref ECSSecurityGroup
+      Tags:
+        - Key: Name
+          Value: efs-sg
+  
+  # Security Group for ALB (allows HTTPS traffic)
+  SecurityGroupALB:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: alb-sg
+      VpcId: !ImportValue ECSVPCId
+      GroupDescription: 'Security group from ALB allowing HTTPS traffic'
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: alb-sg
+
+Outputs:
+  ECSSecurityGroupId:
+    Description: 'Security Group Id for ECS'
+    Value: !Ref ECSSecurityGroup
+    Export:
+      Name: ECSSecurityGroupID
+
+  EFSSecurityGroupId:
+    Description: 'Security Group Id for EFS'
+    Value: !Ref EFSSecurityGroup
+    Export:
+      Name: EFSSecurityGroupID
+
+  ALBSecurityGroupId:
+    Description: 'Security Group Id for ALB'
+    Value: !Ref SecurityGroupALB
+    Export:
+      Name: ALBSGId
+
