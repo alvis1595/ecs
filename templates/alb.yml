@@ -1,0 +1,47 @@
+Description: >
+  This template deploys an Network Load Balancer.
+
+Resources:
+  NetworkingALB:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: alb-sonarqube-app
+      Scheme: internet-facing
+      Subnets:
+        - !ImportValue PublicSubnet1Id
+        - !ImportValue PublicSubnet2Id
+      SecurityGroups: 
+        - !ImportValue ALBSGId 
+      Type: application
+      LoadBalancerAttributes:
+        - Key: load_balancing.cross_zone.enabled
+          Value: true
+        - Key: deletion_protection.enabled
+          Value: false
+      Tags:
+        - Key: Name
+          Value: sonarqube-alb
+
+  DNSRecordSet:
+    Type: AWS::Route53::RecordSet
+    DependsOn: NetworkingALB
+    Properties:
+      HostedZoneId: "{{resolve:ssm:/config/infra/devops/hosted-zone-id}}"
+      Name: "{{resolve:ssm:/config/infra/devops/dns-record}}"
+      Type: CNAME
+      TTL: '300'
+      ResourceRecords:
+        - !GetAtt NetworkingALB.DNSName
+
+Outputs:
+  NetworkingALB:
+    Description: A reference to the Network Load Balancer
+    Value: !Ref NetworkingALB
+    Export:
+      Name: alb-sonarqube-arn
+
+  NetworkingALBDNS:
+    Description: NLB's DNS
+    Value: !GetAtt NetworkingALB.DNSName
+    Export:
+      Name: !Sub alb-sonarqube-dns
