@@ -1,0 +1,180 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'VPC with 2 Public Subnets, 2 Private Subnets, Internet Gateway, and NAT Gateway'
+
+Resources:
+  # VPC
+  ECSVPC:
+    Type: 'AWS::EC2::VPC'
+    Properties:
+      CidrBlock: "{{resolve:ssm:/config/infra/devops/ecs/vpc-cidr}}"
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: ECSVPC
+
+  # Internet Gateway
+  InternetGateway:
+    Type: 'AWS::EC2::InternetGateway'
+    Properties:
+      Tags:
+        - Key: Name
+          Value: ECSIGW
+
+  AttachGateway:
+    Type: 'AWS::EC2::VPCGatewayAttachment'
+    Properties:
+      VpcId: !Ref ECSVPC
+      InternetGatewayId: !Ref InternetGateway
+
+  # NAT Gateway
+  ElasticIP:
+    Type: 'AWS::EC2::EIP'
+    Properties:
+      Domain: vpc
+
+  NatGateway:
+    Type: 'AWS::EC2::NatGateway'
+    Properties:
+      AllocationId: !GetAtt ElasticIP.AllocationId
+      SubnetId: !Ref PublicSubnet1
+      Tags:
+        - Key: Name
+          Value: ECSNGW
+
+  # Public Subnets
+  PublicSubnet1:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref ECSVPC
+      CidrBlock: "{{resolve:ssm:/config/infra/devops/ecs/cidr-public-subnet-a}}"
+      MapPublicIpOnLaunch: true
+      AvailabilityZone: !Select [0, !GetAZs '' ]
+      Tags:
+        - Key: Name
+          Value: PublicSubnet1
+
+  PublicSubnet2:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref ECSVPC
+      CidrBlock: "{{resolve:ssm:/config/infra/devops/ecs/cidr-public-subnet-b}}"
+      MapPublicIpOnLaunch: true
+      AvailabilityZone: !Select [1, !GetAZs '' ]
+      Tags:
+        - Key: Name
+          Value: PublicSubnet2
+
+  # Private Subnets
+  PrivateSubnet1:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref ECSVPC
+      CidrBlock: "{{resolve:ssm:/config/infra/devops/ecs/cidr-private-subnet-a}}"
+      AvailabilityZone: !Select [0, !GetAZs '' ]
+      Tags:
+        - Key: Name
+          Value: PrivateSubnet1
+
+  PrivateSubnet2:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref ECSVPC
+      CidrBlock: "{{resolve:ssm:/config/infra/devops/ecs/cidr-private-subnet-b}}"
+      AvailabilityZone: !Select [1, !GetAZs '' ]
+      Tags:
+        - Key: Name
+          Value: PrivateSubnet2
+
+  # Route Tables for Public Subnets
+  PublicRouteTable:
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      VpcId: !Ref ECSVPC
+      Tags:
+        - Key: Name
+          Value: PublicRouteTable
+
+  PublicRoute:
+    Type: 'AWS::EC2::Route'
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: '0.0.0.0/0'
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnet1RouteTableAssociation:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      SubnetId: !Ref PublicSubnet1
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnet2RouteTableAssociation:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      SubnetId: !Ref PublicSubnet2
+      RouteTableId: !Ref PublicRouteTable
+
+  # Route Tables for Private Subnets
+  PrivateRouteTable:
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      VpcId: !Ref ECSVPC
+      Tags:
+        - Key: Name
+          Value: PrivateRouteTable
+
+  PrivateRoute:
+    Type: 'AWS::EC2::Route'
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      DestinationCidrBlock: '0.0.0.0/0'
+      NatGatewayId: !Ref NatGateway
+
+  PrivateSubnet1RouteTableAssociation:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      SubnetId: !Ref PrivateSubnet1
+      RouteTableId: !Ref PrivateRouteTable
+
+  PrivateSubnet2RouteTableAssociation:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      SubnetId: !Ref PrivateSubnet2
+      RouteTableId: !Ref PrivateRouteTable
+
+Outputs:
+  VPCId:
+    Description: 'VPC Id'
+    Value: !Ref ECSVPC
+    Export:
+      Name: ECSVPCId
+
+  VPCCidrBlock:
+    Description: 'VPC CidrBlock'
+    Value: !GetAtt ECSVPC.CidrBlock
+    Export:
+      Name: ECSVPCCIDR
+
+  PrivateSubnet1Id:
+    Description: 'Private Subnet 1 Id'
+    Value: !Ref PrivateSubnet1
+    Export:
+      Name: ECSPrivateSubnet1ID
+
+  PrivateSubnet2Id:
+    Description: 'Private Subnet 2 Id'
+    Value: !Ref PrivateSubnet2
+    Export:
+      Name: ECSPrivateSubnet2ID
+
+  PublicSubnet1Id:
+    Description: 'Public Subnet 1 Id'
+    Value: !Ref PublicSubnet1
+    Export:
+      Name: ECSPublicSubnet1Id
+
+  PublicSubnet2Id:
+    Description: 'Public Subnet 2 Id'
+    Value: !Ref PublicSubnet2
+    Export:
+      Name: ECSPublicSubnet2Id
