@@ -1,0 +1,36 @@
+Description: VPC Peering between ECS and RDS VPCs.
+
+Resources:
+  # VPC Peering Connection
+  VPCPeeringConnection:
+    Type: AWS::EC2::VPCPeeringConnection
+    Properties:
+      PeerVpcId: !ImportValue RDS-VPCId # VPC de RDS
+      VpcId: !ImportValue ECSVPCId  # VPC de ECS
+      PeerRegion: us-west-2
+      Tags:
+        - Key: Name
+          Value: VPC-Peering-ECS-RDS
+
+  # Route for Peering in ECSVPC
+  ECSVPCPeeringRoute:
+    Type: 'AWS::EC2::Route'
+    Properties:
+      RouteTableId: rtb-07c30d282a48ae5cb
+      DestinationCidrBlock: "{{resolve:ssm:/config/infra/rds/vpc-cidr}}"
+      VpcPeeringConnectionId: !Ref VPCPeeringConnection
+
+  # Route for Peering in VPCSonarqube
+  VPCSonarqubePeeringRoute:
+    Type: 'AWS::EC2::Route'
+    Properties:
+      RouteTableId: rtb-06fbddfcefba43e20
+      DestinationCidrBlock: "{{resolve:ssm:/config/infra/devops/ecs/vpc-cidr}}"
+      VpcPeeringConnectionId: !Ref VPCPeeringConnection
+
+Outputs:
+  VPCPeeringConnectionId:
+    Value: !Ref VPCPeeringConnection
+    Description: VPC Peering Connection ID
+    Export:
+      Name: ECS-RDS-VPC-Peering-Connection
