@@ -171,51 +171,10 @@ Outputs:
     Description: 'Public Subnet 1 Id'
     Value: !Ref PublicSubnet1
     Export:
-      Name: ECSPublicSubnet1Id
+      Name: PublicSubnet1Id
 
   PublicSubnet2Id:
     Description: 'Public Subnet 2 Id'
     Value: !Ref PublicSubnet2
     Export:
-      Name: ECSPublicSubnet2Id
-
-
-
-
-
-
-Description: VPC Peering between ECS and RDS VPCs.
-
-Resources:
-  # VPC Peering Connection
-  VPCPeeringConnection:
-    Type: AWS::EC2::VPCPeeringConnection
-    Properties:
-      PeerVpcId: !ImportValue RDS-VPCId  # VPC de RDS
-      VpcId: !Ref VPCSonarqube  # VPC de ECS
-      Tags:
-        - Key: Name
-          Value: VPC-Peering-ECS-RDS
-
-  # Actualizar la tabla de rutas de la VPC de ECS para enrutar a la VPC de RDS
-  ECSVpcPeeringRoute:
-    Type: AWS::EC2::Route
-    Properties:
-      RouteTableId: !Ref ECSRouteTable  # Ruta de la VPC ECS
-      DestinationCidrBlock: "{{resolve:ssm:/config/infra/rds/cidr-private-subnet-a}}"  # CIDR de la VPC de RDS
-      VpcPeeringConnectionId: !Ref VPCPeeringConnection
-
-  # Actualizar la tabla de rutas de la VPC de RDS para enrutar a la VPC de ECS
-  RDSPVpcPeeringRoute:
-    Type: AWS::EC2::Route
-    Properties:
-      RouteTableId: !Ref RDSRouteTable  # Ruta de la VPC RDS
-      DestinationCidrBlock: "{{resolve:ssm:/config/infra/ecs/cidr-private-subnet}}"  # CIDR de la VPC de ECS
-      VpcPeeringConnectionId: !Ref VPCPeeringConnection
-
-Outputs:
-  VPCPeeringConnectionId:
-    Value: !Ref VPCPeeringConnection
-    Description: VPC Peering Connection ID
-    Export:
-      Name: ECS-RDS-VPC-Peering-Connection
+      Name: PublicSubnet2Id
