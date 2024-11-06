@@ -10,7 +10,7 @@ Resources:
       TargetType: ip
       HealthyThresholdCount: 2
       UnhealthyThresholdCount: 3
-      VpcId: !ImportValue MyVPCID
+      VpcId: !ImportValue ECSVPCId
   
   AlbListener:
     DependsOn:
