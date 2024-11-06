@@ -69,4 +69,3 @@ Outputs:
     Value: !Ref SecurityGroupALB
     Export:
       Name: ALBSGId
-
