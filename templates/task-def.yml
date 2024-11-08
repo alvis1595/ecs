@@ -178,3 +178,29 @@ Outputs:
     Value: !Ref LogGroupSonar
     Export:
       Name: ECSLogGroupName
+
+
+
+
+ContainerDefinitions:
+  - Name: sonarqube
+    Image: "{{resolve:ssm:/config/infra/devops/ecs/sonarqube-image}}"
+    Essential: true
+    PortMappings:
+      - ContainerPort: 9000
+        HostPort: 9000
+        Protocol: tcp
+        Name: sonar-port
+        AppProtocol: http
+    Environment:
+      - Name: SONARQUBE_JDBC_USERNAME
+        Value: 'sonaradmin'  # Usuario en texto plano
+      - Name: SONARQUBE_JDBC_PASSWORD
+        Value: 'your_plain_text_password'  # Contraseña en texto plano
+      - Name: SONARQUBE_JDBC_URL
+        Value: "{{resolve:ssm:/config/infra/rds/db-endpoint}}"
+      - Name: SET_CONTAINER_TIMEZONE
+        Value: 'true'
+      - Name: TZ
+        Value: 'America/Panama'
+
